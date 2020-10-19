@@ -1,0 +1,11 @@
+{
+    "parameters":
+    {
+        "rb_baud":19200,
+        "rb_com": "COM13",
+
+        "drone_sn":123456,
+        "gcs_sn":123456
+    }
+
+}
