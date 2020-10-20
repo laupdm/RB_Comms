@@ -1,75 +1,87 @@
 import serial
-import serial.tools.list_ports 
+from serial.tools.list_ports import comports
 import time
 import sys
 import json
 import glob
 from adafruit_rockblock import *
 class RockBlocks:
-
     def __init__(self, filename = None):
-
+        # RockBlock configuration and connection:
         self.config = self.configure(filename)
+               
+        config = self.config['parameters']
+
+        self.baudrate = config["rb_baud"]
+        self.port = config["rb_com"]
+        self.sn = config["gcs_sn"]
+
+        self.ensure_connection()
+            
+    def check_connection(self, rb):
+
+        resp = rb._uart_xfer("+CSQ")
+
+        if resp[-1].strip().decode() == "OK":
+            status = int(resp[1].strip().decode().split(":")[1])
+
+        else:
+            quality = False
+
+        signal_strength = status
+
+        print("Signal strength:", signal_strength)
+
+        if signal_strength >= 1:
+            quality = True
+
+        else:
+            quality = False
+
+        return quality
+
+    def ensure_connection(self):
+        print("Ensuring connection...")
+        baudrate = self.baudrate
+        port1 = self.port
+
         # Make sure the user has connected the RB:
-        ports = list(serial.tools.list_ports.comports())                         
-        while len(ports) == 0:
-            print("Please connect the RockBlock...")
-            time.sleep(3)
-            ports = list(serial.tools.list_ports.comports()) 
-        
-        # Ask the user if there has been any change on the RB devices
-        while True:
-            try:
-                res = str(input("Has any of the RockBlock devices changed? (Y/N):"))
+        ports = list(comports()) 
+        rb_port = False
 
-                if (res == "Y") or (res == "y") or (res == "N") or (res == "n"):
-                    break
-                print("ERROR: Response has to be of type Y/N.")
-            except Exception as e:
-                print(e)
-                
-        if (res == "Y") or (res == "y"):
+        for p in ports:
+            
+            if port1 in p:
+                rb_port = True
+            else:
+                rb_port = False
 
-            baudrate = self.config['parameters']['rb_baud']
-            port = self.select_RB_port()
-
-            uart = serial.Serial(port, baudrate) # port = "/dev/ttyUSB0"
-
-            self.rb = RockBlock(uart)
+        # RB Port correct 
+        if (rb_port == True):
+            uart = serial.Serial(port1, baudrate)
+            rb = RockBlock(uart)
             print("RockBlock connected!")
-            list_sn = self.rb_serial_num()
+            return rb
 
-            self.drone_sn = list_sn[1]
-            self.gcs_sn = list_sn[0]
+        # RB Port not correct 
+        elif (rb_port == False):
+            port2 = (self.select_RB_port())
 
-            # Change settings for the next time:
-            self.config['parameters']['drone_sn'] = self.drone_sn
-            self.config['parameters']['gcs_sn'] = self.gcs_sn
-            self.config['parameters']['rb_com'] = port
+            # RB Port correction in config 
+            self.config['parameters']['rb_com'] = port2
+
             a_file = open("config.json", "w")
             json.dump(self.config, a_file)
-            print("RockBlock settings changed for the next time")
 
-        elif (res == "N") or (res == "n"):
-
-            config = self.config['parameters']
-
-            baudrate = config["rb_baud"]
-            port = config["rb_com"]
-            
-            uart = serial.Serial(port, baudrate)
-
-            self.drone_sn = config['drone_sn']
-            self.gcs_sn = config['gcs_sn']
-            
-
-            self.rb = RockBlock(uart)
+            uart = serial.Serial(port2, baudrate)
+            rb = RockBlock(uart)
             print("RockBlock connected!")
-                   
+            return rb
+
     def configure(self, filename):
-        # Recoje la información del archivo de la configuración
+        
         if not filename:
-            filename = "config.json" # a no ser que le cambiemos el nombre del archivo, va a utilizar el que creamos
+            filename = "config.json" 
 
         try:
             with open(filename, "r") as myfile:
@@ -81,98 +93,94 @@ class RockBlocks:
             return None
 
     def select_RB_port(self):
-        comPorts = list(serial.tools.list_ports.comports()) 
-        ports = comPorts
-        port = ""
-                
+        ports = list(comports()) 
+        port_name = ""
+            
         while len(ports) == 0:
             print("Please connect the RockBlock...")
             time.sleep(3)
-            ports = list(serial.tools.list_ports.comports()) 
-        
-            
+            ports = list(comports())  
+                    
         if len(ports) > 0:
-            #TODO: find the name of the RockBlock that appears and automatize the process
-            print("\nList number : PORT")
+            print("\nPORT number : PORT name")
             for port in ports:
-                print( "   ",ports.index(port), "      :" , port , "\n")
+                print( "   ",ports.index(port)+1, "      :" , port , "\n")
 
-            #print("You can check RB port nº at: Administrador de dispositivos/Puertos COM y LPT \n")
-            res = ""
-            while True:
-                try:
-                    res = int(input("Type the list number corresponding to RockBlock's port:"))
+                if port[2].startswith("USB VID:PID=0403:6001 SER=FTB"):
+                    
+                    port_name = str(port[0])
+                    
+        # if len(ports) > 0:
+        #     print("\nList number : PORT")
+        #     for port in ports:
+        #         print( "   ",ports.index(port), "      :" , port , "\n")
 
-                    if (ports[res] in ports):
-                        port = list(ports[res])
-                        port_name = port[0]
-                        print("Port", port_name ,"has been selected.")
-                        break
-                    print("ERROR: No list number", res ," has been found.")
-                except Exception as e:
-                    print("ERROR:",e)
+        #     #print("You can check RB port nº at: Administrador de dispositivos/Puertos COM y LPT \n")
+        #     res = ""
+        #     while True:
+        #         try:
+        #             res = int(input("Type the list number corresponding to RockBlock's port:"))
+
+        #             if (ports[res] in ports):
+        #                 port = list(ports[res])
+        #                 port_name = port[0]
+        #                 print("Port", port_name ,"has been selected.")
+        #                 break
+        #             print("ERROR: No list number", res ," has been found.")
+        #         except Exception as e:
+        #             print("ERROR:",e)
             
-        port = list(ports[res])
-        port_name = port[0]
+        # port = list(ports[res])
+        # port_name = port[0]
         # print("Port:", port)
         # print("Port name:", port_name)
-
         return port_name
+    
+    @property
+    def get_time(self):
+        rb = self.connect_rockblock()
+        resp = rb._uart_xfer("+CCLK?")  # 20/09/26,12:07:13
 
-    def send_code(self):
-        #TODO: define ERROR codes 
+        if resp[-1].strip().decode() == "OK":
+            status = tuple(resp[1].decode().split(","))
+            date = (status[0].split(":"))[1]
+
+            year = str(int(date.split("/")[0]) + 2000)
+            month = date.split("/")[1]
+            day = date.split("/")[2]
+
+            time = status[1]
+            hour = int(time.split(":")[0]) + 2  # UTC +2 for Spain
+            min = time.split(":")[1]
+            # sec = time.split(":")[2]
+
+            timestamp = str(year) + "_" + str(month) + "_" + \
+                str(day) + "-" + str(hour) + "_" + str(min)
+
+            return timestamp
+
+    def receive_msg(self):
         pass
     
-    def receive_code(self):
-        #TODO: decodification of codes 
+    def send_msg(self):
+
+        pass
+    
+    def codification(self,msg):
+        # [drone_id, status, type, homeLat, homeLon, heading, distance(km), *width(km)]
+        # status = 2 MISSION
+        # TYPE -> 0: Rectangle (* parameters are needed)
+        # TYPE -> 1: Zigzag (* parameters are needed)
+        # TYPE -> 2: Straight
         pass
 
-    def rb_serial_num(self):
-
-        # Ask the user the serial number of the drone's RockBlock 
-        while True:
-            try:
-                res = int(input("Type the drone's RockBlock serial number:"))
-                sn_drone = res
-
-                if (len(str(abs(res))) == 6):
-
-                    while True:
-                        try:
-                            res2 = input("Drone's RockBlock serial number"+ sn_drone + "is correct? (Y/N):")
-
-                            if (res2 =="y" or res2 == "Y"):
-                                break
-                            sn_drone = int(input("Type the drone's RockBlock serial number:"))
-                        except Exception as e:
-                            print(e)
-                                
-                    break
-
-                print("ERROR: RockBlock serial numbers have always 6 digits")
-            except Exception as e:
-                print(e)
-        
-      
-
-
-
-
-
-
-        while sure !="Y" or sure!="y":
-            sn_drone = input("Type the drone's RockBlock serial number:")
-            sure = input("Drone's RockBlock serial number "+ sn_drone + " is correct? (Y/N):")
-
-        sn_gcs = input("Type the GCS's RockBlock serial number:")
-        sure = input("GCS's RockBlock serial number "+ sn_gcs + " is correct? (Y/N):")
-
-        while sure !="Y" or sure!="y":
-            sn_gcs = input("Type the GCS's RockBlock serial number:")
-            sure = input("GCS's RockBlock serial number "+ sn_drone + " is correct? (Y/N):")
-
-        sn = [sn_gcs,sn_drone]
-        return sn
+    def decodification(self,msg):
+        # [drone_id, status, type, homeLat, homeLon, heading, distance(km), *width(km)]
+        # status = 2 MISSION
+        # TYPE -> 0: Rectangle (* parameters are needed)
+        # TYPE -> 1: Zigzag (* parameters are needed)
+        # TYPE -> 2: Straight
+        pass
 
 if __name__ == "__main__":
     

@@ -59,7 +59,7 @@ if __name__ == "__main__":
     # a_file = open("config.json", "w")
     # json.dump(config, a_file)
 
-    # import serial.tools.list_ports   # import serial module
+    # from serial.tools.list_ports import comports  # import serial module
     # comPorts = list(serial.tools.list_ports.comports()) 
     # ports = comPorts
     # port = ""
@@ -68,6 +68,8 @@ if __name__ == "__main__":
     #     print("\nList number : PORT")
     #     for port in ports:
     #         print( "   ",ports.index(port), "      :" , port , "\n")
+    #         print(port[1])
+    #         print(port[2])
 
     #     #print("You can check RB port nº at: Administrador de dispositivos/Puertos COM y LPT \n")
     #     res = ""
@@ -91,30 +93,84 @@ if __name__ == "__main__":
     #     ports = comPorts
     #     port = ""
 
-        
+    # Make sure the user has connected the RB:
+    # ports = list(comports()) 
+    # rb_port = False
 
-    # return port
+    # port = "COM13"
+    
+    # while (rb_port == False):
+    #     ports = list(comports())
 
-    # Ask the user the serial number of the drone's RockBlock 
-        while True:
-            try:
-                res = int(input("Type the drone's RockBlock serial number:"))
-                sn_drone = res
+    #     while (len(ports) == 0):
+    #         print("Please connect the RockBlock...")
+    #         time.sleep(3)
+    #         ports = list(serial.tools.list_ports.comports())
+    #         print("\nList number : PORT")
+    #         for port in ports:
+    #             print( "   ", ports.index(port) , "      :" , port , "\n")
 
-                if (len(str(abs(res))) == 6):
-                    print("hola")
-                    while True:
-                        try:
-                            res2 = input("Drone's RockBlock serial number",sn_drone ,"is correct? (Y/N):")
+    #     for p in ports:
 
-                            if (res2 =="y" or res2 == "Y"):
-                                break
-                            sn_drone = int(input("Type the drone's RockBlock serial number:"))
-                        except Exception as e:
-                            print(e)
-                                
-                    break
+    #         if port in p:
+    #             print(p)
+    #             print(port)
                 
-                print("ERROR: RockBlock serial numbers have always 6 digits")
-            except Exception as e:
-                print(e)
+    #             rb_port = True
+
+    #         elif p[1].startswith("USB Serial Port"):
+    #             print("USB Serial Port")
+    #             print(p)
+    #             rb_port = True
+    #         elif p[2].startswith("USB VID:PID=0403:6001 SER=FTB"):
+    #             print("USB VID:PID=0403:6001 SER=FTB")
+    #             print(p)
+    #             rb_port = True
+            
+
+    
+
+    
+
+    ports = list(comports()) 
+    port = ""
+            
+    while len(ports) == 0:
+        print("Please connect the RockBlock...")
+        time.sleep(3)
+        ports = list(comports())  
+                
+    if len(ports) > 0:
+        print("\nList number : PORT")
+        for port in ports:
+            print( "   ",ports.index(port), "      :" , port , "\n")
+
+            if port[2].startswith("USB VID:PID=0403:6001 SER=FTB"):
+                print("USB VID:PID=0403:6001 SER=FTB")
+                print(port)
+                port_name = str(port[0])
+
+    #     #print("You can check RB port nº at: Administrador de dispositivos/Puertos COM y LPT \n")
+    #     res = ""
+    #     while True:
+    #         try:
+    #             res = int(input("Type the list number corresponding to RockBlock's port:"))
+
+
+    #             if (ports[res] in ports):
+    #                 port = list(ports[res])
+    #                 port_name = port[0]
+    #                 port_description = port[1]
+    #                 port_x = port[2]
+
+    #                 print("Port", port_name ,"has been selected.")
+    #                 break
+    #             print("ERROR: No list number", res ," has been found.")
+    #         except Exception as e:
+    #             print("ERROR:",e)
+        
+    # port = list(ports[res])
+
+    # port_name = port[0]
+    print("Port:", port)
+    print("Port name:", port_name)
