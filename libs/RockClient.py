@@ -246,7 +246,8 @@ class RockBlocks:
 
     def process_message(self, msg):
         data = self.decodification(msg)
-        print (data)
+        print(json.dumps(data, indent=4))
+        
         return None
 
     def codification(self, msg):
@@ -282,18 +283,43 @@ class RockBlocks:
             return None
     
     def decodification(self,msg):
-        status = 0
+        values = msg.split(",")
+        landing = 0
+        flying = 1        
+        drone_id = values[0]
+        status = int(values[1])
+        lat = (int(values[2])) / 100000
+        lon = (int(values[3])) / 100000
+        alt = (int(values[4])) / 10
+        flight_time = values[5]
 
-        if status == 0:  # LANDING
-            # [drone_id, status, lat, lon, alt, fltime]
-            pass
-            
+        data = {}
+        
+        if status == landing: 
+            data['Landing'] = []
+            data['Landing'].append({'drone_id': drone_id,
+                'status':"Landing",
+                'latitude': lat,
+                'longitude': lon,
+                'altitude': alt,
+                'mission time': flight_time})  
 
-        elif status == 1:  # FLIGHT
-            # [drone_id, status, lat, lon, alt, fltime, heading, missiontype]
-            pass
+        elif status == flying:
+            heading = values[6]
+            mission_type = values[7]
+            data['Flying'] = []
+            data['Flying'].append({
+                'drone_id': drone_id,
+                'status':"Flying",
+                'latitude': lat,
+                'longitude': lon,
+                'altitude': alt,
+                'mission time': flight_time,
+                'heading': heading,
+                'mission': mission_type  
+            } )
 
-        return None
+        return data
     
     def check_sender(self):
         # SENDER:
@@ -314,16 +340,15 @@ class RockBlocks:
 if __name__ == "__main__":
     
     r = RockBlocks()    
-    msg_text = ""
 
     while True:
 
-        # message = r.get_message()
-        # print("Received message:", message)
+        message = r.get_message()
+        print("Received message:", message)
 
-        # if not message is None:  # Si ha algun msg
-        #     print("Processing messages...")
-        #     r.process_message(message)
+        if not message is None:  # Si ha algun msg
+            print("Processing messages...")
+            r.process_message(message)
         
         sender = r.check_sender()
 
