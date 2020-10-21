@@ -4,6 +4,7 @@ import time
 import sys
 import json
 import glob
+import keyboard  # using module keyboard
 from adafruit_rockblock import *
 class RockBlocks:
     def __init__(self, filename = None):
@@ -14,31 +15,9 @@ class RockBlocks:
 
         self.baudrate = config["rb_baud"]
         self.port = config["rb_com"]
-        self.sn = config["gcs_sn"]
+        self.gcs_sn = config["gcs_sn"]
 
-        self.ensure_connection()
-            
-    def check_connection(self, rb):
-
-        resp = rb._uart_xfer("+CSQ")
-
-        if resp[-1].strip().decode() == "OK":
-            status = int(resp[1].strip().decode().split(":")[1])
-
-        else:
-            quality = False
-
-        signal_strength = status
-
-        print("Signal strength:", signal_strength)
-
-        if signal_strength >= 1:
-            quality = True
-
-        else:
-            quality = False
-
-        return quality
+        self.rb = self.ensure_connection()
 
     def ensure_connection(self):
         print("Ensuring connection...")
@@ -136,7 +115,6 @@ class RockBlocks:
         # print("Port name:", port_name)
         return port_name
     
-    @property
     def get_time(self):
         rb = self.connect_rockblock()
         resp = rb._uart_xfer("+CCLK?")  # 20/09/26,12:07:13
@@ -162,26 +140,212 @@ class RockBlocks:
     def receive_msg(self):
         pass
     
-    def send_msg(self):
+    def check_connection(self, rb):
 
-        pass
+        resp = rb._uart_xfer("+CSQ")
+
+        if resp[-1].strip().decode() == "OK":
+            status = int(resp[1].strip().decode().split(":")[1])
+
+        else:
+            quality = False
+
+        signal_strength = status
+
+        print("Signal strength:", signal_strength)
+
+        if signal_strength >= 1:
+            quality = True
+
+        else:
+            quality = False
+
+        return quality  
+
+    def send_msg(self, msg):
+        text = self.codification(msg)
+
+        if text is not None:
+            data = text
+            cc = self.check_connection(self.rb)
+        
+            previous = time.perf_counter()
+            timer = 0
+
+            while cc is not True:
+                current = time.perf_counter()
+                timer += current - previous
+                previous = current
+
+                print("Checking again...")
+                cc = self.check_connection(self.rb)
+
+                if timer > 15:
+                    print('Im tired of checking signal')
+                    break
+
+            if cc is not False:
+                print("Ready to send message!")
+
+                # put data in outbound buffer
+                self.rb.text_out = data
+
+                # try a satellite Short Burst Data transfer
+                print("Talking to satellite...")
+
+                status = self.rb.satellite_transfer()
+                print("Try num:", 1)
+                print("Satellite status:", status)
+
+                if( status[0] > 8 ):
+                    print("The communication has failed")
+                else:
+                    print("\nDONE.")
+
+        elif text is None:
+            print("Try again...") 
+
+        return None
+
+    def get_message(self):
+        rb = self.rb
+
+        cc = self.check_connection(self.rb)
+        
+        previous = time.perf_counter()
+        timer = 0
+
+        while cc is not True:
+            current = time.perf_counter()
+            timer += current - previous
+            previous = current
+
+            print("Checking again...")
+            cc = self.check_connection(self.rb)
+
+            if timer > 15:
+                print('Im tired of checking signal')
+                break
+
+        if cc is not False:
+            # try a satellite Short Burst Data transfer
+            print("Talking to satellite...")
+
+            status = self.rb.satellite_transfer()
+            print("Try num:", 1)
+            print("Satellite status:", status)
+
+            if( status[0] > 8 ):
+                print("The communication has failed")
+            else:
+                # get the text
+                message = rb.text_in
+                print("\nMessage has arrived.")
+        
+        return message
+
+    def process_message(self, msg):
+        data = self.decodification(msg)
+        print (data)
+        return None
+
+    def codification(self, msg):
+        print("Codification...")
+        sn = str(self.gcs_sn)
+        # Ensure Serial number is 7 bytes:
+        if len(sn) < 7:
+            zeros = 7 - len(sn)
+            while zeros > 0:
+                sn = "0" + sn
+                zeros = zeros - 1
+            
+            # RB serial number correction in config: 
+            self.config['parameters']['gcs_sn'] = sn
+            a_file = open("config.json", "w")
+            json.dump(self.config, a_file)
+
+            # Write text message with correct prefix:
+            prefix = "RB" + sn
+            txt = prefix + msg     
+            txt = str.encode(txt)   
+            return txt
+
+        elif len(sn) == 7:
+            # Write text message with correct prefix:
+            prefix = "RB" + sn
+            txt = prefix + msg     
+            txt = str.encode(txt)   
+            return txt
+            
+        elif len(sn) > 7:
+            print("ERROR: Serial number has more than 7 characters, check at config.json")      
+            return None
     
-    def codification(self,msg):
-        # [drone_id, status, type, homeLat, homeLon, heading, distance(km), *width(km)]
-        # status = 2 MISSION
-        # TYPE -> 0: Rectangle (* parameters are needed)
-        # TYPE -> 1: Zigzag (* parameters are needed)
-        # TYPE -> 2: Straight
-        pass
-
     def decodification(self,msg):
-        # [drone_id, status, type, homeLat, homeLon, heading, distance(km), *width(km)]
-        # status = 2 MISSION
-        # TYPE -> 0: Rectangle (* parameters are needed)
-        # TYPE -> 1: Zigzag (* parameters are needed)
-        # TYPE -> 2: Straight
-        pass
+        status = 0
+
+        if status == 0:  # LANDING
+            # [drone_id, status, lat, lon, alt, fltime]
+            pass
+            
+
+        elif status == 1:  # FLIGHT
+            # [drone_id, status, lat, lon, alt, fltime, heading, missiontype]
+            pass
+
+        return None
+    
+    def check_sender(self):
+        # SENDER:
+        sender = False
+        print("Press S at Keyboard if you want to send a message.")
+        time.sleep(2)       
+        #used try so that if user pressed other than the given key error will not be shown
+        if keyboard.is_pressed('s'):  # if key 's' is pressed 
+            
+            print('Sender has been activated...\n')
+            sender  = True
+
+        else:
+            sender = False
+
+        return sender
 
 if __name__ == "__main__":
     
-    r = RockBlocks()
+    r = RockBlocks()    
+    msg_text = ""
+
+    while True:
+
+        # message = r.get_message()
+        # print("Received message:", message)
+
+        # if not message is None:  # Si ha algun msg
+        #     print("Processing messages...")
+        #     r.process_message(message)
+        
+        sender = r.check_sender()
+
+        if sender:
+            # ASK user what message wants to send:
+
+            while(True):
+
+                res = str(input("Type the message you want to send:"))
+
+                try:
+                    if( len(res) < 111 ):
+                        print("Apparently correct typed message.")
+                        msg_text = res
+                        r.send_msg(msg_text)
+                        break
+
+                    print("ERROR: text length is ", len(res) ," bytes and should be 111 bytes maximum.\n")
+                    print("Try to erase", ( len(res)-111 ), "bytes from your text")
+
+                except Exception as e:
+                    print("ERROR:",e)
+
+        
+        

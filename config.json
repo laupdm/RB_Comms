@@ -1,1 +1,1 @@
-{"parameters": {"rb_baud": 19200, "rb_com": "COM13", "gcs_sn": 123456}}
+{"parameters": {"rb_baud": 19200, "rb_com": "COM13", "gcs_sn": "0123456"}}
